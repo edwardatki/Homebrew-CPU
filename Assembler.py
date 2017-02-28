@@ -37,6 +37,9 @@ labelValues = []
 constants = []
 constantValues = []
 
+# Array of lines for second stage to process
+tempFile = []
+
 # Output array
 binaryOut = []
 
@@ -48,63 +51,62 @@ def main():
 		sys.exit(2)
 
 	# Open source file
-	f = open(args[0],"r")
+	file = open(args[0],"r")
 
 	# First pass
 	addr = 0
 	#print("First pass")
 	
-	for line in f:
+	for line in file:
 		line = line.strip()
 		line = line.rstrip('\r\n')
 		
+		if len(line) < 2:
+			continue
+
+		# Check if the line is a comment
+		elif line[0] == "/" and line[1] == "/":
+			continue
+		
 		# Check if the line is a label and add to array for reference in second pass
-		if line[-1:] == ":":
+		elif line[-1:] == ":":
 				#print("Found label: %s at %02x" % (line[:-1],addr))
 				labels.append(line[:-1])
 				labelValues.append(addr)
-				
+				continue
+		
 		elif len(line.split(" ")) > 2 and line.split(" ")[1] == "EQU":
-				print("Found constant: %s = %s" % (line.split(" ")[0],line.split(" ")[2]))
+				#print("Found constant: %s = %s" % (line.split(" ")[0],line.split(" ")[2]))
 				constants.append(line.split(" ")[0])
 				constantValues.append(line.split(" ")[2])
+				continue
 		
-		# If opcode or data byte then increment address
-		elif line.split(" ")[0].rstrip('\r\n') in opcodes:
+		for const in constants:
+			if const in line and line.split(" ")[1] != "EQU":
+				line = line.replace(const, str(constantValues[constants.index(const)]))
+				
+		if "$" in line:
+			line = line.replace("$", str(addr))
+		
+		# If opcode or data byte then increment address and add to tempFile
+		if line.split(" ")[0] in opcodes or line.split(" ")[0] == "db":
 				addr += 1
+				tempFile.append(line)
 	
 	# Second Pass
 	addr = 0
-	f.seek(0)
 	#print("Second pass")
 	
-	for line in f:
-		line = line.strip()
+	for line in tempFile:
 		
 		# Check if address is in range (0x0 - 0xF)
 		if addr < 0x0 or addr > 0xF:
 			print("Address out of range: %02x" % addr)
-			sys.exit(2)
-		
-		# Check if line is empty
-		if len(line) < 2:
-			pass
-			
-		# Check if the line is a comment
-		elif line[0] == "/" and line[1] == "/":
-			pass
-			
-		# Check if line is label
-		elif line.rstrip('\r\n')[-1:] == ":":
-			pass
-			
-		# Check if line is constant definition
-		elif len(line.split(" ")) > 2 and line.split(" ")[1] == "EQU":
-			pass
+			sys.exit(1)
 			
 		else:
 			# Get mnemonic
-			mnemonic = line.split(" ")[0].rstrip('\r\n')
+			mnemonic = line.split(" ")[0]
 			
 			# Check if mnemonic is valid
 			if mnemonic in opcodes:
@@ -114,33 +116,24 @@ def main():
 				if opperands[opcodes.index(mnemonic)] != 0:
 					
 					# Get opperand
-					opperand = line.split(" ")[1].rstrip('\r\n')
-					
-					# Check to see if special character and if opcode takes address
-
-					if opperand == "$" and opperands[opcodes.index(mnemonic)] == "a":
-						opperand = addr
+					opperand = line.split(" ")[1]
 					
 					# Check to see if label and if opcode takes address
-					elif opperand in labels and opperands[opcodes.index(mnemonic)] == "a":
+					if opperand in labels and opperands[opcodes.index(mnemonic)] == "a":
 						opperand = labelValues[labels.index(opperand)]
-						
-					# Check to see if constant
-					elif opperand in constants:
-						opperand = constantValues[constants.index(opperand)]
 					
-					# Otherwise check if takes data and parse to int
-					elif opperands[opcodes.index(mnemonic)]:
+					# Otherwise parse to int
+					else:
 						try:
 							opperand = int(opperand,0)
 						except:
-							print("Invalid opperand type: %s" % opperand)
-							sys.exit(2)
+							print("Invalid opperand: %s" % opperand)
+							sys.exit(1)
 					
 					# Check opperand is in range (0x0-0xF)
 					if opperand < 0x0 or opperand > 0xF:
 						print("Opperand out of range: %02x" % opperand)
-						sys.exit(2)
+						sys.exit(1)
 						
 				# If it doesn't take an opperand just default to 0
 				else:
@@ -149,27 +142,21 @@ def main():
 				# Combine opcode and opperand to get final hex value
 				hexout = (opcode<<4) | opperand
 				
-			# If not a valid mnemonic check if it is a data byte or a constant
+			# If not a valid mnemonic check if it is a data byte
 			else:
 				if mnemonic == "db":
-				
-					# Check to see if constant
-					if line.split(" ")[1] in constants:
-						hexout = int(constantValues[constants.index(line.split(" ")[1])], 0)
 					
-					# Otherwise get value from line
-					else:
-						hexout = int(line.split(" ")[1],0)
+					hexout = int(line.split(" ")[1],0)
 					
 					# Check data is in range (0x00 - 0xFF)
 					if hexout < 0x00 or hexout > 0xFF:
 						print("Data out of range: %02x" % hexout)
-						sys.exit(2)
+						sys.exit(1)
 						
 				else:
 					# If it wasn't a valid opcode or a data byte then it must be an invalid opcode so exit
 					print("Invalid Mnemonic: %s" % mnemonic)
-					sys.exit(2)
+					sys.exit(1)
 					
 			# Print, append to output array and increment address
 			print("%01x: %02x" % (addr, hexout))
