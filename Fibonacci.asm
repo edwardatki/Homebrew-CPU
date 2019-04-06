@@ -1,40 +1,42 @@
-// 0x0 LDI
-// 0x1 STM
-// 0x2 LDM
-// 0x3 LDMA
-// 0x4 ADDI
-// 0x5 SUBI
-// 0x6 ADDM
-// 0x7 SUBM
-// 0x8 JMPI
-// 0x9 JMPM
-// 0xA JMPA
-// 0xB JMPMA
-// 0xC JZM
-// 0xD JCM
-// 0xE OUT
-// 0xF HLT
+// 0x0x LDI	Load immediate
+// 0x1x STM	Store memory
+// 0x2x LDM	Load memory
+// 0x3x LDMA	Load memory indexed by A
+// 0x4x ADDI	Add immediate
+// 0x5x SUBI	Sub immediate
+// 0x6x ADDM	Add memory
+// 0x7x SUBM	Sub memory
+// 0x8x JMPI	Jump immediate
+// 0x9x JMPM	Jump memory
+// 0xAx JMPA	Jump A
+// 0xBx JMPMA	Jump memory indexed by A
+// 0xCx JZI	Jump zero immediate
+// 0xDx JCI	Jump carry immediate
+// 0xEx OUT	Output
+// 0xFx HLT	Halt
 // $ = Current Address
 
-MAX_VAL EQU 0xE9
+Init:
+LDI 1
+STM A
+STM B
 
 Start:
-ADDM 0xE
-STM 0xE
+ADDM A
+STM A
+JCI $
 OUT
-SUBM 0xD
-JZI $
-LDM 0xE
+LDM A
 
-ADDM 0xF
-STM 0xF
+ADDM B
+STM B
+JCI $
 OUT
-SUBM 0xD
-JZI $
-LDM 0xF
-JMPI 0x0
+LDM B
+JMPI Start
 
 // Vars
-db MAX_VAL
+A:
 db 0x1
+B:
 db 0x1
